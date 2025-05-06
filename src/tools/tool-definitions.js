@@ -5,6 +5,7 @@
  */
 
 const toolDefinitions = {
+  // Web tools
   webSearch: {
     name: "web_search",
     description: "Search the web for information on a given query",
@@ -65,6 +66,102 @@ const toolDefinitions = {
         }
       },
       required: ["urls"]
+    }
+  },
+  
+  // Image generation tools
+  generateImage: {
+    name: "generate_image",
+    description: "Generate an image based on a text prompt",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description: "Detailed description of the image to generate"
+        },
+        provider: {
+          type: "string",
+          description: "AI provider to use for image generation",
+          enum: ["openai", "stability"],
+          default: "openai"
+        },
+        options: {
+          type: "object",
+          description: "Additional options for image generation",
+          properties: {
+            model: {
+              type: "string",
+              description: "For OpenAI: The model to use (dall-e-2 or dall-e-3)",
+              default: "dall-e-3"
+            },
+            size: {
+              type: "string",
+              description: "For OpenAI: Image size (1024x1024, 512x512, etc.)",
+              default: "1024x1024"
+            },
+            negativePrompt: {
+              type: "string",
+              description: "For Stability: What to avoid in the image",
+              default: "low quality, blurry, distorted, deformed features"
+            },
+            steps: {
+              type: "integer",
+              description: "For Stability: Number of diffusion steps (higher = more detail but slower)",
+              default: 30
+            },
+            width: {
+              type: "integer",
+              description: "For Stability: Image width",
+              default: 1024
+            },
+            height: {
+              type: "integer",
+              description: "For Stability: Image height",
+              default: 1024
+            }
+          }
+        }
+      },
+      required: ["prompt"]
+    }
+  },
+  
+  editImage: {
+    name: "edit_image",
+    description: "Edit an existing image with a text prompt",
+    parameters: {
+      type: "object",
+      properties: {
+        imagePath: {
+          type: "string",
+          description: "Path to the image to edit"
+        },
+        prompt: {
+          type: "string",
+          description: "Text description of the desired edit"
+        },
+        maskPath: {
+          type: "string",
+          description: "Optional path to a mask image (transparent areas indicate where edits should be applied)"
+        }
+      },
+      required: ["imagePath", "prompt"]
+    }
+  },
+  
+  createVariation: {
+    name: "create_image_variation",
+    description: "Create a variation of an existing image",
+    parameters: {
+      type: "object",
+      properties: {
+        imagePath: {
+          type: "string",
+          description: "Path to the image to create variations of"
+        }
+      },
+      required: ["imagePath"]
     }
   }
 };

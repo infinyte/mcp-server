@@ -168,6 +168,70 @@ app.get('/tools/:toolName', (req, res) => {
   return res.json(toolDefinition);
 });
 
+// Image generation tool endpoints
+app.post('/tools/image/generate', asyncHandler(async (req, res) => {
+  const { prompt, provider = 'openai', options = {} } = req.body;
+  
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt parameter is required' });
+  }
+  
+  try {
+    const result = await tools.imageGeneration.generateImage(prompt, provider, options);
+    
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error generating image:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}));
+
+app.post('/tools/image/edit', asyncHandler(async (req, res) => {
+  const { imagePath, prompt, maskPath } = req.body;
+  
+  if (!imagePath || !prompt) {
+    return res.status(400).json({ error: 'Both imagePath and prompt parameters are required' });
+  }
+  
+  try {
+    const result = await tools.imageGeneration.editImage(imagePath, prompt, maskPath);
+    
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error editing image:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}));
+
+app.post('/tools/image/variation', asyncHandler(async (req, res) => {
+  const { imagePath } = req.body;
+  
+  if (!imagePath) {
+    return res.status(400).json({ error: 'ImagePath parameter is required' });
+  }
+  
+  try {
+    const result = await tools.imageGeneration.createImageVariation(imagePath);
+    
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error creating image variation:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}));
+
 // Handler functions for different providers
 async function handleAnthropicRequest({ prompt, messages, tools, context, model }) {
   const modelToUse = model || 'claude-3-opus-20240229';
@@ -252,6 +316,7 @@ async function executeTools(toolUseContent) {
       const { name, input } = toolUse;
       
       switch (name) {
+        // Web tools
         case 'web_search':
           const searchResults = await tools.webSearch.searchWeb(input.query, input.limit);
           results.push({
@@ -276,6 +341,44 @@ async function executeTools(toolUseContent) {
             tool_name: name,
             input,
             output: batchResults
+          });
+          break;
+          
+        // Image tools
+        case 'generate_image':
+          const imageResult = await tools.imageGeneration.generateImage(
+            input.prompt, 
+            input.provider || 'openai', 
+            input.options || {}
+          );
+          results.push({
+            tool_name: name,
+            input,
+            output: imageResult
+          });
+          break;
+          
+        case 'edit_image':
+          const editResult = await tools.imageGeneration.editImage(
+            input.imagePath,
+            input.prompt,
+            input.maskPath
+          );
+          results.push({
+            tool_name: name,
+            input,
+            output: editResult
+          });
+          break;
+          
+        case 'create_image_variation':
+          const variationResult = await tools.imageGeneration.createImageVariation(
+            input.imagePath
+          );
+          results.push({
+            tool_name: name,
+            input,
+            output: variationResult
           });
           break;
         
@@ -306,6 +409,7 @@ async function executeOpenAITools(toolCalls) {
       const input = JSON.parse(func.arguments);
       
       switch (name) {
+        // Web tools
         case 'web_search':
           const searchResults = await tools.webSearch.searchWeb(input.query, input.limit);
           results.push({
@@ -327,6 +431,41 @@ async function executeOpenAITools(toolCalls) {
           results.push({
             id,
             output: JSON.stringify(batchResults)
+          });
+          break;
+          
+        // Image tools
+        case 'generate_image':
+          const imageResult = await tools.imageGeneration.generateImage(
+            input.prompt, 
+            input.provider || 'openai', 
+            input.options || {}
+          );
+          results.push({
+            id,
+            output: JSON.stringify(imageResult)
+          });
+          break;
+          
+        case 'edit_image':
+          const editResult = await tools.imageGeneration.editImage(
+            input.imagePath,
+            input.prompt,
+            input.maskPath
+          );
+          results.push({
+            id,
+            output: JSON.stringify(editResult)
+          });
+          break;
+          
+        case 'create_image_variation':
+          const variationResult = await tools.imageGeneration.createImageVariation(
+            input.imagePath
+          );
+          results.push({
+            id,
+            output: JSON.stringify(variationResult)
           });
           break;
         

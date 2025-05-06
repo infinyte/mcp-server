@@ -116,6 +116,33 @@ The server includes built-in web search and retrieval tools:
    - Retrieve content from multiple URLs in parallel
    - Parameters: `urls` (required array), `useCache` (optional)
 
+### Image Generation Tools
+
+The server also includes image generation, editing, and variation tools:
+
+1. **Generate Image** (`/tools/image/generate`)
+   - Generate an image based on a text prompt
+   - Parameters:
+     - `prompt` (required): Detailed description of the image
+     - `provider` (optional): `openai` or `stability` (defaults to `openai`)
+     - `options` (optional): Provider-specific options
+
+2. **Edit Image** (`/tools/image/edit`)
+   - Edit an existing image with a text prompt
+   - Parameters:
+     - `imagePath` (required): Path to the image to edit
+     - `prompt` (required): Description of the edit to make
+     - `maskPath` (optional): Path to a mask image
+
+3. **Create Image Variation** (`/tools/image/variation`)
+   - Create a variation of an existing image
+   - Parameters:
+     - `imagePath` (required): Path to the image to create variations of
+
+> **Note:** To use these tools, you need to set API keys in your `.env` file:
+> - For OpenAI images: `OPENAI_API_KEY`
+> - For Stability AI images: `STABILITY_API_KEY`
+
 ### Tool Integration with AI Models
 
 The MCP server automatically handles tool calling and execution with AI models. When a model decides to use a tool, the server:
