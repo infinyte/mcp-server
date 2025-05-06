@@ -25,7 +25,14 @@ async function generateImageWithDALLE(prompt, model = 'dall-e-3', size = '1024x1
     const openaiKey = process.env.OPENAI_API_KEY;
     
     if (!openaiKey) {
-      throw new Error('OPENAI_API_KEY is not set in environment variables');
+      console.warn('OPENAI_API_KEY is not set in environment variables');
+      return {
+        success: false,
+        error: 'OPENAI_API_KEY is not set in environment variables',
+        prompt,
+        model,
+        size
+      };
     }
     
     const response = await axios.post(
@@ -108,7 +115,16 @@ async function generateImageWithStableDiffusion(
     const stabilityKey = process.env.STABILITY_API_KEY;
     
     if (!stabilityKey) {
-      throw new Error('STABILITY_API_KEY is not set in environment variables');
+      console.warn('STABILITY_API_KEY is not set in environment variables');
+      return {
+        success: false,
+        error: 'STABILITY_API_KEY is not set in environment variables',
+        prompt,
+        negative_prompt: negativePrompt,
+        steps,
+        width,
+        height
+      };
     }
     
     const response = await axios.post(

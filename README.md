@@ -20,31 +20,51 @@ cd testmcp
 # Install dependencies
 npm install
 
-# Create .env file
-cp .env.example .env
+# Run the interactive setup
+npm run setup
 ```
 
-Edit the `.env` file and add your API keys:
+The setup script will guide you through configuring the necessary API keys:
 
-```
-PORT=3000
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
-```
+- `ANTHROPIC_API_KEY` - For Claude models
+- `OPENAI_API_KEY` - For GPT models and DALL-E image generation
+- `STABILITY_API_KEY` - For Stable Diffusion image generation
+
+You can also manually edit the `.env` file if you prefer:
 
 ## Usage
 
 ### Start the server
 
 ```bash
+# Interactive startup (checks for API keys)
+npm start
+
 # Development mode with auto-reload
 npm run dev
 
-# Production mode
-npm start
+# Quick start (skips environment checks)
+npm run quick-start
 ```
 
 The server will be running at http://localhost:3000 (or the port you specified in .env).
+
+#### Startup Options
+
+1. **Standard Start** (`npm start`):
+   - Checks if API keys are configured
+   - Prompts for setup if no keys are found
+   - Recommended for first-time users
+
+2. **Development Mode** (`npm run dev`):
+   - Uses nodemon for auto-reload on code changes
+   - Still performs environment checks
+   - Best for development
+
+3. **Quick Start** (`npm run quick-start`):
+   - Bypasses all environment checks
+   - Starts the server immediately
+   - Useful when you know your configuration is correct
 
 ### API Endpoints
 

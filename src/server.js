@@ -18,14 +18,29 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Initialize AI clients
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Initialize AI clients with optional API keys
+let anthropic = null;
+let openai = null;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize Anthropic client if API key exists
+if (process.env.ANTHROPIC_API_KEY) {
+  anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+  console.log('Anthropic client initialized');
+} else {
+  console.log('Warning: ANTHROPIC_API_KEY not set, Anthropic features will be unavailable');
+}
+
+// Initialize OpenAI client if API key exists
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  console.log('OpenAI client initialized');
+} else {
+  console.log('Warning: OPENAI_API_KEY not set, OpenAI features will be unavailable');
+}
 
 // MCP routes
 app.post('/mcp/:provider', asyncHandler(async (req, res) => {
@@ -234,6 +249,10 @@ app.post('/tools/image/variation', asyncHandler(async (req, res) => {
 
 // Handler functions for different providers
 async function handleAnthropicRequest({ prompt, messages, tools, context, model }) {
+  if (!anthropic) {
+    throw new Error('Anthropic client is not initialized. Please set ANTHROPIC_API_KEY in your .env file.');
+  }
+
   const modelToUse = model || 'claude-3-opus-20240229';
   
   // Handle different request types
@@ -262,6 +281,10 @@ async function handleAnthropicRequest({ prompt, messages, tools, context, model 
 }
 
 async function handleOpenAIRequest({ prompt, messages, tools, context, model }) {
+  if (!openai) {
+    throw new Error('OpenAI client is not initialized. Please set OPENAI_API_KEY in your .env file.');
+  }
+
   const modelToUse = model || 'gpt-4o';
   
   if (messages) {
@@ -484,9 +507,84 @@ async function executeOpenAITools(toolCalls) {
   }
 }
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`MCP server running on port ${PORT}`);
-});
+// Function to start the server
+function startServer() {
+  app.listen(PORT, () => {
+    console.log(`MCP server running on port ${PORT}`);
+    
+    // Log available features
+    console.log('\n=== Available Features ===');
+    console.log(`Anthropic API (Claude): ${anthropic ? 'Enabled ✅' : 'Disabled ❌'}`);
+    console.log(`OpenAI API (GPT, DALL-E): ${openai ? 'Enabled ✅' : 'Disabled ❌'}`);
+    
+    if (!anthropic && !openai) {
+      console.log('\n⚠️  Neither Anthropic nor OpenAI APIs are configured.');
+      console.log('The MCP server will run with limited functionality.');
+      console.log('To enable more features, run: node src/setup.js');
+    }
+    
+    console.log('\nServer is ready to accept connections!');
+    console.log(`You can access the web UI at: http://localhost:${PORT}`);
+  });
+}
+
+// If this file is being run directly, start the server
+if (require.main === module) {
+  // Check if the setup script exists
+  try {
+    const setup = require('./setup');
+    
+    // Check environment and start server if everything is configured
+    if (process.env.SKIP_ENV_CHECK) {
+      console.log('Environment check skipped via SKIP_ENV_CHECK flag.');
+      startServer();
+    } else {
+      // Perform environment check without interactive prompt
+      const envStatus = {
+        anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+        openai: Boolean(process.env.OPENAI_API_KEY),
+        stability: Boolean(process.env.STABILITY_API_KEY)
+      };
+      
+      if (!envStatus.anthropic && !envStatus.openai && !envStatus.stability) {
+        console.log('\n⚠️  Warning: No API keys detected in environment.');
+        console.log('Would you like to set up API keys now? (Y/n)');
+        
+        // Create readline interface for input
+        const readline = require('readline');
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+        
+        rl.question('> ', (answer) => {
+          rl.close();
+          if (answer.toLowerCase() !== 'n' && answer.toLowerCase() !== 'no') {
+            // Run setup and then start server when done
+            setup.promptForEnvVars().then(() => {
+              console.log('\nReloading environment variables...');
+              // Reload environment variables
+              Object.keys(require.cache).forEach(key => {
+                if (key.includes('dotenv')) {
+                  delete require.cache[key];
+                }
+              });
+              require('dotenv').config();
+              startServer();
+            });
+          } else {
+            console.log('Skipping setup. Starting server with limited functionality...');
+            startServer();
+          }
+        });
+      } else {
+        startServer();
+      }
+    }
+  } catch (error) {
+    console.warn('Setup module not found, skipping environment check.');
+    startServer();
+  }
+}
 
 module.exports = app;
