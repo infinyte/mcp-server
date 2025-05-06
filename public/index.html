@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Client</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-weight: bold;
+        }
+        select, textarea, input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #response {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            min-height: 200px;
+        }
+        .loading {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>MCP Client</h1>
+    
+    <div class="container">
+        <div class="form-group">
+            <label for="provider">Provider:</label>
+            <select id="provider">
+                <option value="anthropic">Anthropic</option>
+                <option value="openai">OpenAI</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="model">Model:</label>
+            <input type="text" id="model" placeholder="e.g., claude-3-opus-20240229 or gpt-4o">
+        </div>
+        
+        <div class="form-group">
+            <label for="message">Message:</label>
+            <textarea id="message" placeholder="Type your message here..."></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="context">System Context (optional):</label>
+            <textarea id="context" placeholder="Optional system message or context..."></textarea>
+        </div>
+        
+        <button id="send">Send Request</button>
+        
+        <div class="form-group">
+            <label for="response">Response:</label>
+            <div id="response"></div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('provider').addEventListener('change', function() {
+            const provider = this.value;
+            const modelInput = document.getElementById('model');
+            
+            if (provider === 'anthropic') {
+                modelInput.placeholder = 'e.g., claude-3-opus-20240229';
+            } else if (provider === 'openai') {
+                modelInput.placeholder = 'e.g., gpt-4o';
+            }
+        });
+        
+        document.getElementById('send').addEventListener('click', async function() {
+            const provider = document.getElementById('provider').value;
+            const model = document.getElementById('model').value;
+            const message = document.getElementById('message').value;
+            const context = document.getElementById('context').value;
+            const responseElement = document.getElementById('response');
+            
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+            
+            responseElement.textContent = 'Loading...';
+            responseElement.classList.add('loading');
+            
+            try {
+                const response = await fetch(`/mcp/${provider}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            { role: 'user', content: message }
+                        ],
+                        ...(model && { model }),
+                        ...(context && { context })
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                responseElement.classList.remove('loading');
+                responseElement.textContent = JSON.stringify(data, null, 2);
+                
+                // Extract and display the actual response content for easier reading
+                if (provider === 'anthropic' && data.content && data.content.length > 0) {
+                    const text = data.content[0].text;
+                    responseElement.textContent = text + '\n\n--- Full Response ---\n\n' + 
+                        JSON.stringify(data, null, 2);
+                } else if (provider === 'openai' && data.choices && data.choices.length > 0) {
+                    const text = data.choices[0].message.content;
+                    responseElement.textContent = text + '\n\n--- Full Response ---\n\n' + 
+                        JSON.stringify(data, null, 2);
+                }
+                
+            } catch (error) {
+                responseElement.classList.remove('loading');
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
