@@ -248,12 +248,13 @@ app.post('/tools/image/variation', asyncHandler(async (req, res) => {
 }));
 
 // Handler functions for different providers
-async function handleAnthropicRequest({ prompt, messages, tools, context, model }) {
+async function handleAnthropicRequest({ prompt, messages, tools, context, model, max_tokens }) {
   if (!anthropic) {
     throw new Error('Anthropic client is not initialized. Please set ANTHROPIC_API_KEY in your .env file.');
   }
 
   const modelToUse = model || 'claude-3-opus-20240229';
+  const maxTokens = max_tokens || 1000; // Default to 1000 tokens
   
   // Handle different request types
   if (messages) {
@@ -261,6 +262,7 @@ async function handleAnthropicRequest({ prompt, messages, tools, context, model 
     const response = await anthropic.messages.create({
       model: modelToUse,
       messages,
+      max_tokens: maxTokens,
       ...(tools && { tools }),
       ...(context && { system: context }),
     });
@@ -271,6 +273,7 @@ async function handleAnthropicRequest({ prompt, messages, tools, context, model 
     const response = await anthropic.completions.create({
       model: modelToUse,
       prompt,
+      max_tokens: maxTokens,
       ...(context && { system: context }),
     });
     
