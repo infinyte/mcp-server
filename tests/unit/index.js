@@ -10,7 +10,9 @@ console.log('=== Running Unit Tests ===');
 
 // Define the test files
 const testFiles = [
-  { name: 'Web Search Unit Test', path: './test-web-search.js' }
+  { name: 'Web Search Unit Test', path: './test-web-search.js' },
+  { name: 'Tools Available Module Test', path: './test-tools-available-module.js' },
+  { name: 'Tools Discovery Advanced Filters Test', path: './test-tools-discovery-advanced-filters.js' }
 ];
 
 // Track overall success

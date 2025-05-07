@@ -228,6 +228,68 @@ OR (Legacy format):
 **Response:**
 Returns the raw response from the provider's API.
 
+#### `GET /tools/available`
+
+Get a comprehensive list of all available tools with detailed information.
+
+**Query Parameters:**
+- `format` - Response format: `json` (default), `yaml`, `table`, or `html`
+- `category` - Filter tools by category (optional)
+- `enabled` - Filter by enabled status: `true` (default) or `false`
+- `search` - Search for tools by name, description, or tags
+- `provider` - Filter tools by provider (e.g., `openai`, `google`)
+- `limit` - Maximum number of tools to return (for pagination)
+- `offset` - Offset for pagination (default: 0)
+
+**Response (JSON format):**
+```json
+{
+  "success": true,
+  "count": 10,
+  "metadata": {
+    "categories": ["web", "image", "utility"],
+    "providers": ["openai", "anthropic", "internal"],
+    "totalCount": 24,
+    "offset": 0,
+    "limit": 10
+  },
+  "tools": [
+    {
+      "name": "web_search",
+      "description": "Search the web for information",
+      "category": "web",
+      "version": "1.0.0",
+      "provider": "google",
+      "enabled": true,
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "The search query",
+          "required": true
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum number of results",
+          "required": false,
+          "default": 5
+        }
+      },
+      "usage": {
+        "endpoint": "/tools/web/search",
+        "method": "POST",
+        "parameters": { /* same as above */ }
+      },
+      "metadata": {
+        "createdAt": "2023-10-15T12:00:00Z",
+        "updatedAt": "2024-04-20T09:30:00Z",
+        "usageCount": 1245
+      }
+    }
+    // ... more tools
+  ]
+}
+```
+
 #### `GET /health`
 
 Health check endpoint that returns status 200 if the server is running.
@@ -273,6 +335,31 @@ node src/client.js
 A simple web interface is available at http://localhost:3000 when the server is running. You can use this to test the API directly from your browser.
 
 ## Available Tools
+
+The MCP server provides a tools discovery endpoint that allows users and AI agents to programmatically list all available tools:
+
+#### Tools Discovery
+
+`GET /tools/available` - Lists all available tools with detailed information.
+
+- Supports multiple formats: JSON, YAML, HTML, and ASCII table
+- Provides filtering by category, provider, and search terms
+- Includes detailed metadata and usage examples for each tool
+
+Example usage:
+```bash
+# Get all tools in JSON format
+curl http://localhost:3000/tools/available
+
+# Get tools in a specific category
+curl http://localhost:3000/tools/available?category=web
+
+# Search for image-related tools
+curl http://localhost:3000/tools/available?search=image
+
+# Get a formatted HTML page of all tools
+curl http://localhost:3000/tools/available?format=html > tools.html
+```
 
 ### Web Search Tools
 
@@ -327,6 +414,24 @@ The MCP server automatically handles tool calling and execution with AI models. 
 1. Executes the requested tool with the provided parameters
 2. Returns the tool's response to the model
 3. The model can then incorporate the tool's response into its final answer
+
+#### Tool Discovery for AI Models
+
+AI models can use the `/tools/available` endpoint to discover what tools are available and how to use them. This is particularly useful for:
+
+- Dynamic tool discovery during runtime
+- Self-documentation for AI agents
+- Enabling AI systems to adapt to available capabilities
+
+Example system prompt for AI models:
+```
+You have access to external tools through the MCP server. 
+Before using any tools, you should check what tools are available by calling:
+GET /tools/available
+
+This will return a list of all available tools with their parameters and usage instructions.
+You can then use these tools by following the provided usage patterns.
+```
 
 ### Example Tool Usage
 

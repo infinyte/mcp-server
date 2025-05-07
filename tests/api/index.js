@@ -10,7 +10,8 @@ console.log('=== Running API Tests ===');
 
 // Define the test files
 const testFiles = [
-  { name: 'Anthropic API Test', path: './test-anthropic.js' }
+  { name: 'Anthropic API Test', path: './test-anthropic.js' },
+  { name: 'Tools Discovery API Test', path: './test-tools-available.js' }
 ];
 
 // Track overall success

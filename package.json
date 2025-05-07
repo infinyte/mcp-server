@@ -22,7 +22,8 @@
     "test:api": "node tests/api/index.js",
     "test:security": "node tests/security/index.js",
     "test:integration": "node tests/integration/index.js",
-    "test:unit": "node tests/unit/index.js"
+    "test:unit": "node tests/unit/index.js",
+    "test:tools-discovery": "node tests/api/test-tools-available.js && node tests/unit/test-tools-available-module.js && node tests/integration/test-tools-discovery-usage.js && node tests/unit/test-tools-discovery-advanced-filters.js && node tests/integration/test-tools-discovery-advanced-filters.js"
   },
   "keywords": [
     "mcp",
@@ -53,6 +54,7 @@
     "sharp": "^0.34.1"
   },
   "devDependencies": {
+    "jest": "^29.7.0",
     "nodemon": "^3.1.10"
   }
 }

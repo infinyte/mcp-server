@@ -11,7 +11,9 @@ console.log('=== Running Integration Tests ===');
 // Define the test files
 const testFiles = [
   { name: 'MongoDB Integration Test', path: './test-mongodb.js' },
-  { name: 'Image Services Test', path: './test-image.js' }
+  { name: 'Image Services Test', path: './test-image.js' },
+  { name: 'Tools Discovery Usage Test', path: './test-tools-discovery-usage.js' },
+  { name: 'Tools Discovery Advanced Filters Test', path: './test-tools-discovery-advanced-filters.js' }
 ];
 
 // Track overall success
