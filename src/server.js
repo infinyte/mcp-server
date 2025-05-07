@@ -10,6 +10,7 @@ const databaseService = require('./services/database');
 const stateManager = require('./services/stateManager');
 const persistenceService = require('./services/persistence');
 const routes = require('./routes');
+const toolsAvailableHandler = require('./tools-available');
 
 // Load environment variables
 dotenv.config();
@@ -186,7 +187,15 @@ app.post('/mcp/:provider', asyncHandler(async (req, res) => {
       // Call the model again with tool outputs
       const toolMessages = messages || [];
       toolMessages.push({ role: 'assistant', content: null, tool_calls: response.choices[0].message.tool_calls });
-      toolMessages.push({ role: 'tool', content: JSON.stringify(toolOutputs), tool_call_id: response.choices[0].message.tool_calls[0].id });
+      
+      // Add all tool outputs as separate messages
+      toolOutputs.forEach(toolOutput => {
+        toolMessages.push({ 
+          role: 'tool', 
+          content: toolOutput.output, 
+          tool_call_id: toolOutput.id 
+        });
+      });
       
       const followupResponse = await handleOpenAIRequest({
         messages: toolMessages,
@@ -368,39 +377,8 @@ app.get('/tools', asyncHandler(async (req, res) => {
   }
 }));
 
-// Get specific tool definition
-app.get('/tools/:toolName', asyncHandler(async (req, res) => {
-  const { toolName } = req.params;
-  
-  try {
-    // Try to get tool from database first
-    const dbTool = await databaseService.getToolByName(toolName);
-    
-    if (dbTool) {
-      return res.json(dbTool);
-    }
-    
-    // Fall back to in-memory tool definition
-    const toolDefinition = tools.getToolDefinition(toolName);
-    
-    if (!toolDefinition) {
-      return res.status(404).json({ error: `Tool "${toolName}" not found` });
-    }
-    
-    return res.json(toolDefinition);
-  } catch (error) {
-    console.error(`Error getting tool "${toolName}":`, error);
-    
-    // Fall back to in-memory tool definition on error
-    const toolDefinition = tools.getToolDefinition(toolName);
-    
-    if (!toolDefinition) {
-      return res.status(404).json({ error: `Tool "${toolName}" not found` });
-    }
-    
-    return res.json(toolDefinition);
-  }
-}));
+// Available tools endpoint with detailed information
+app.get('/tools/available', toolsAvailableHandler(tools, databaseService));
 
 // List tools endpoint (human-readable format)
 app.get('/tools/list/all', asyncHandler(async (req, res) => {

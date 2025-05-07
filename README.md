@@ -31,6 +31,8 @@ The setup script will guide you through configuring the necessary API keys:
 - `ANTHROPIC_API_KEY` - For Claude models
 - `OPENAI_API_KEY` - For GPT models and DALL-E image generation
 - `STABILITY_API_KEY` - For Stable Diffusion image generation
+- `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_ID` - For web search functionality
+- `BING_SEARCH_API_KEY` - For fallback web search
 
 You can also manually edit the `.env` file if you prefer.
 
@@ -279,6 +281,8 @@ The server includes built-in web search and retrieval tools:
 1. **Web Search** (`/tools/web/search`)
    - Search the web for information on a given query
    - Parameters: `query` (required), `limit` (optional)
+   - Requires: `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_ID` environment variables
+   - Falls back to `BING_SEARCH_API_KEY` if Google search fails
 
 2. **Web Content** (`/tools/web/content`)
    - Retrieve and extract content from a specific URL
@@ -314,6 +318,7 @@ The server also includes image generation, editing, and variation tools:
 > **Note:** To use these tools, you need to set API keys in your `.env` file:
 > - For OpenAI images: `OPENAI_API_KEY`
 > - For Stability AI images: `STABILITY_API_KEY`
+> - For Web Search: `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_ID`
 
 ### Tool Integration with AI Models
 

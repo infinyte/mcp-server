@@ -18,7 +18,11 @@
     "pm2:delete": "pm2 delete ecosystem.config.js",
     "pm2:logs": "pm2 logs",
     "pm2:monit": "pm2 monit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tests/run-all-tests.js",
+    "test:api": "node tests/api/index.js",
+    "test:security": "node tests/security/index.js",
+    "test:integration": "node tests/integration/index.js",
+    "test:unit": "node tests/unit/index.js"
   },
   "keywords": [
     "mcp",
@@ -41,6 +45,7 @@
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "form-data": "^4.0.2",
+    "js-yaml": "^4.1.0",
     "mongoose": "^8.14.1",
     "node-fetch": "^3.3.2",
     "openai": "^4.97.0",

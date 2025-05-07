@@ -186,26 +186,153 @@ async function getWebpageContent(url, useCache = true) {
 }
 
 /**
- * Search the web using a search engine API or scrape search results
- * Note: This is a placeholder and needs a real search API integration
+ * Search the web using Google Custom Search API
  * @param {string} query - The search query
  * @param {number} limit - The maximum number of results to return
- * @returns {Promise<Array>} - An array of search results
+ * @returns {Promise<Object>} - Search results
  */
 async function searchWeb(query, limit = 5) {
-  // NOTE: For a production environment, you would use a proper search API:
-  // - Google Custom Search API
-  // - Bing Search API
-  // - DuckDuckGo API (when available)
-  // - SerpAPI
+  console.log(`Searching web for: ${query} (limit: ${limit})`);
   
-  // This is a placeholder showing the expected format
-  return {
-    query,
-    searchedAt: new Date().toISOString(),
-    message: "This is a placeholder. Implement a real search API integration.",
-    results: []
-  };
+  // Create cache key for this search
+  const cacheKey = `search:${query}:${limit}`;
+  
+  // Try to get results from cache first
+  const cachedResults = getFromCache(cacheKey, 3600000); // 1 hour cache
+  
+  if (cachedResults) {
+    console.log('Returning cached search results');
+    return cachedResults;
+  }
+  
+  // Check for Google API key
+  if (!process.env.GOOGLE_CSE_API_KEY || !process.env.GOOGLE_CSE_ID) {
+    console.warn('GOOGLE_CSE_API_KEY or GOOGLE_CSE_ID not set. Using fallback search.');
+    
+    // Try Bing search if available
+    if (process.env.BING_SEARCH_API_KEY) {
+      return await searchBing(query, limit);
+    }
+    
+    return {
+      query,
+      searchedAt: new Date().toISOString(),
+      message: "Search API credentials not configured. Please set GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID in your environment variables.",
+      results: []
+    };
+  }
+  
+  try {
+    const apiKey = process.env.GOOGLE_CSE_API_KEY;
+    const cseId = process.env.GOOGLE_CSE_ID;
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cseId}&q=${encodeURIComponent(query)}&num=${limit}`;
+    
+    const response = await axios.get(url);
+    
+    if (response.status !== 200) {
+      throw new Error(`Google API error: ${response.status}`);
+    }
+    
+    const data = response.data;
+    
+    // Process and format results
+    const results = data.items ? data.items.map(item => ({
+      title: item.title,
+      link: item.link,
+      snippet: item.snippet,
+      displayLink: item.displayLink,
+      source: 'google'
+    })) : [];
+    
+    const searchResults = {
+      query,
+      searchedAt: new Date().toISOString(),
+      totalResults: data.searchInformation?.totalResults || 0,
+      searchTime: data.searchInformation?.searchTime || 0,
+      results: results.slice(0, limit)
+    };
+    
+    // Cache results
+    saveToCache(cacheKey, searchResults);
+    
+    return searchResults;
+  } catch (error) {
+    console.error('Google Search API error:', error.message);
+    
+    // Try Bing as fallback if available
+    if (process.env.BING_SEARCH_API_KEY) {
+      console.log('Trying Bing Search API as fallback...');
+      return await searchBing(query, limit);
+    }
+    
+    // Return a graceful error response
+    return {
+      query,
+      searchedAt: new Date().toISOString(),
+      error: error.message,
+      results: []
+    };
+  }
+}
+
+/**
+ * Search the web using Bing Search API (fallback)
+ * @param {string} query - The search query
+ * @param {number} limit - The maximum number of results to return
+ * @returns {Promise<Object>} - Search results
+ */
+async function searchBing(query, limit = 5) {
+  if (!process.env.BING_SEARCH_API_KEY) {
+    return {
+      query,
+      searchedAt: new Date().toISOString(),
+      message: "Bing Search API key not configured. Please set BING_SEARCH_API_KEY in your environment variables.",
+      results: []
+    };
+  }
+  
+  try {
+    const apiKey = process.env.BING_SEARCH_API_KEY;
+    const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=${limit}`;
+    
+    const response = await axios.get(url, {
+      headers: {
+        'Ocp-Apim-Subscription-Key': apiKey
+      }
+    });
+    
+    if (response.status !== 200) {
+      throw new Error(`Bing API error: ${response.status}`);
+    }
+    
+    const data = response.data;
+    
+    // Process and format results
+    const results = data.webPages?.value ? data.webPages.value.map(item => ({
+      title: item.name,
+      link: item.url,
+      snippet: item.snippet,
+      displayLink: item.displayUrl,
+      source: 'bing'
+    })) : [];
+    
+    return {
+      query,
+      searchedAt: new Date().toISOString(),
+      totalResults: data.webPages?.totalEstimatedMatches || 0,
+      results: results.slice(0, limit)
+    };
+  } catch (error) {
+    console.error('Bing Search API error:', error.message);
+    
+    // Return a graceful error response
+    return {
+      query,
+      searchedAt: new Date().toISOString(),
+      error: error.message,
+      results: []
+    };
+  }
 }
 
 /**
@@ -227,5 +354,6 @@ async function fetchMultipleUrls(urls, useCache = true) {
 module.exports = {
   getWebpageContent,
   searchWeb,
+  searchBing,
   fetchMultipleUrls
 };

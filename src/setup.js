@@ -29,6 +29,21 @@ const envVars = [
     required: false
   },
   {
+    name: 'GOOGLE_CSE_API_KEY',
+    description: 'Google Custom Search API Key (for web search)',
+    required: false
+  },
+  {
+    name: 'GOOGLE_CSE_ID',
+    description: 'Google Custom Search Engine ID',
+    required: false
+  },
+  {
+    name: 'BING_SEARCH_API_KEY',
+    description: 'Bing Search API Key (fallback web search)',
+    required: false
+  },
+  {
     name: 'PORT',
     description: 'Port for the MCP server',
     default: '3000',
@@ -98,6 +113,28 @@ function updateEnvFile(envValues) {
     envContent += '# STABILITY_API_KEY=your_stability_api_key_here\n';
   }
   
+  // Add web search API keys
+  envContent += '\n# API keys for Google Custom Search Engine (web search)\n';
+  if (envValues.GOOGLE_CSE_API_KEY) {
+    envContent += `GOOGLE_CSE_API_KEY=${envValues.GOOGLE_CSE_API_KEY}\n`;
+  } else {
+    envContent += '# GOOGLE_CSE_API_KEY=your_google_api_key_here\n';
+  }
+  
+  if (envValues.GOOGLE_CSE_ID) {
+    envContent += `GOOGLE_CSE_ID=${envValues.GOOGLE_CSE_ID}\n`;
+  } else {
+    envContent += '# GOOGLE_CSE_ID=your_google_cse_id_here\n';
+  }
+  
+  // Add Bing search API key
+  envContent += '\n# API key for Bing Search (fallback web search)\n';
+  if (envValues.BING_SEARCH_API_KEY) {
+    envContent += `BING_SEARCH_API_KEY=${envValues.BING_SEARCH_API_KEY}\n`;
+  } else {
+    envContent += '# BING_SEARCH_API_KEY=your_bing_api_key_here\n';
+  }
+  
   // Add server URL
   envContent += '\n# Optional: Server URL for clients\n';
   envContent += `MCP_SERVER_URL=http://localhost:${envValues.PORT || '3000'}\n`;
@@ -127,14 +164,22 @@ async function promptForEnvVars() {
         const hasAnthropic = updatedEnv.ANTHROPIC_API_KEY && updatedEnv.ANTHROPIC_API_KEY.length > 10;
         const hasOpenAI = updatedEnv.OPENAI_API_KEY && updatedEnv.OPENAI_API_KEY.length > 10;
         const hasStability = updatedEnv.STABILITY_API_KEY && updatedEnv.STABILITY_API_KEY.length > 10;
+        const hasGoogleSearch = updatedEnv.GOOGLE_CSE_API_KEY && updatedEnv.GOOGLE_CSE_ID;
+        const hasBingSearch = updatedEnv.BING_SEARCH_API_KEY && updatedEnv.BING_SEARCH_API_KEY.length > 10;
         
         console.log('\n=== Configuration Summary ===');
         console.log(`Anthropic API: ${hasAnthropic ? 'Configured ✅' : 'Not configured ❌'}`);
         console.log(`OpenAI API: ${hasOpenAI ? 'Configured ✅' : 'Not configured ❌'}`);
         console.log(`Stability API: ${hasStability ? 'Configured ✅' : 'Not configured ❌'}`);
+        console.log(`Google Search: ${hasGoogleSearch ? 'Configured ✅' : 'Not configured ❌'}`);
+        console.log(`Bing Search: ${hasBingSearch ? 'Configured ✅' : 'Not configured ❌'}`);
         
         if (!hasAnthropic && !hasOpenAI) {
           console.log('\n⚠️  Warning: No AI model APIs are configured. MCP server will have limited functionality.');
+        }
+        
+        if (!hasGoogleSearch && !hasBingSearch) {
+          console.log('\n⚠️  Warning: No web search APIs are configured. Web search functionality will be limited to placeholders.');
         }
         
         resolve(updatedEnv);
@@ -179,8 +224,8 @@ async function checkEnvironment() {
     }
   });
   
-  // Check if any API keys are present
-  const hasAnyApiKey = Boolean(
+  // Check if any AI API keys are present
+  const hasAnyAiApiKey = Boolean(
     currentEnv.ANTHROPIC_API_KEY || 
     process.env.ANTHROPIC_API_KEY ||
     currentEnv.OPENAI_API_KEY || 
@@ -189,9 +234,23 @@ async function checkEnvironment() {
     process.env.STABILITY_API_KEY
   );
   
-  if (!hasAnyApiKey) {
-    console.log('⚠️  No API keys are configured. Some MCP server features may not work.');
+  // Check if any search API keys are present
+  const hasAnySearchApiKey = Boolean(
+    (currentEnv.GOOGLE_CSE_API_KEY && currentEnv.GOOGLE_CSE_ID) ||
+    (process.env.GOOGLE_CSE_API_KEY && process.env.GOOGLE_CSE_ID) ||
+    currentEnv.BING_SEARCH_API_KEY ||
+    process.env.BING_SEARCH_API_KEY
+  );
+  
+  if (!hasAnyAiApiKey) {
+    console.log('⚠️  No AI API keys are configured. Core MCP server features may not work.');
     missingVars.push('API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, or STABILITY_API_KEY)');
+    allConfigured = false;
+  }
+  
+  if (!hasAnySearchApiKey) {
+    console.log('⚠️  No search API keys are configured. Web search functionality will be limited.');
+    missingVars.push('Search API keys (GOOGLE_CSE_API_KEY & GOOGLE_CSE_ID, or BING_SEARCH_API_KEY)');
     allConfigured = false;
   }
   
