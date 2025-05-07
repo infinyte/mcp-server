@@ -542,12 +542,22 @@ async function startServer() {
       console.log('\n=== Available Features ===');
       console.log(`Anthropic API (Claude): ${anthropic ? 'Enabled ✅' : 'Disabled ❌'}`);
       console.log(`OpenAI API (GPT, DALL-E): ${openai ? 'Enabled ✅' : 'Disabled ❌'}`);
-      console.log(`Database: ${databaseService.isConnected ? 'Connected ✅' : 'Disconnected ❌'}`);
+      
+      if (databaseService.useFallback) {
+        console.log(`Database: In-Memory Fallback ⚠️`);
+      } else {
+        console.log(`Database: ${databaseService.isConnected ? 'MongoDB Connected ✅' : 'Disconnected ❌'}`);
+      }
       
       if (!anthropic && !openai) {
         console.log('\n⚠️  Neither Anthropic nor OpenAI APIs are configured.');
         console.log('The MCP server will run with limited functionality.');
         console.log('To enable more features, run: node src/setup.js');
+      }
+      
+      if (databaseService.useFallback) {
+        console.log('\n⚠️  Running with in-memory database (data will not persist between restarts)');
+        console.log('To use MongoDB persistence, follow the instructions in MONGODB_SETUP.md');
       }
       
       console.log('\nServer is ready to accept connections!');
