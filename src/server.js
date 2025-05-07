@@ -167,22 +167,131 @@ app.post('/tools/web/batch', asyncHandler(async (req, res) => {
 }));
 
 // Get available tools endpoint
-app.get('/tools', (req, res) => {
-  const availableTools = tools.getAllToolDefinitions();
-  return res.json(availableTools);
-});
+app.get('/tools', asyncHandler(async (req, res) => {
+  const { category, enabledOnly } = req.query;
+  
+  // Parse query params
+  const options = {
+    category: category || undefined,
+    enabledOnly: enabledOnly === 'true'
+  };
+  
+  try {
+    // Try to get tools from database first
+    const dbTools = await databaseService.getAllTools(options);
+    
+    // If we have tools in the database, return them
+    if (dbTools && dbTools.length > 0) {
+      return res.json(dbTools);
+    }
+    
+    // Fall back to in-memory tools
+    const availableTools = tools.getAllToolDefinitions();
+    return res.json(availableTools);
+  } catch (error) {
+    console.error('Error getting tools:', error);
+    
+    // Fall back to in-memory tools on error
+    const availableTools = tools.getAllToolDefinitions();
+    return res.json(availableTools);
+  }
+}));
 
 // Get specific tool definition
-app.get('/tools/:toolName', (req, res) => {
+app.get('/tools/:toolName', asyncHandler(async (req, res) => {
   const { toolName } = req.params;
-  const toolDefinition = tools.getToolDefinition(toolName);
   
-  if (!toolDefinition) {
-    return res.status(404).json({ error: `Tool "${toolName}" not found` });
+  try {
+    // Try to get tool from database first
+    const dbTool = await databaseService.getToolByName(toolName);
+    
+    if (dbTool) {
+      return res.json(dbTool);
+    }
+    
+    // Fall back to in-memory tool definition
+    const toolDefinition = tools.getToolDefinition(toolName);
+    
+    if (!toolDefinition) {
+      return res.status(404).json({ error: `Tool "${toolName}" not found` });
+    }
+    
+    return res.json(toolDefinition);
+  } catch (error) {
+    console.error(`Error getting tool "${toolName}":`, error);
+    
+    // Fall back to in-memory tool definition on error
+    const toolDefinition = tools.getToolDefinition(toolName);
+    
+    if (!toolDefinition) {
+      return res.status(404).json({ error: `Tool "${toolName}" not found` });
+    }
+    
+    return res.json(toolDefinition);
   }
+}));
+
+// List tools endpoint (human-readable format)
+app.get('/tools/list/all', asyncHandler(async (req, res) => {
+  const { format = 'json' } = req.query;
   
-  return res.json(toolDefinition);
-});
+  try {
+    // Get tools from database or fall back to in-memory
+    const allTools = await databaseService.getAllTools({ enabledOnly: true });
+    
+    // Group tools by category
+    const toolsByCategory = {};
+    
+    allTools.forEach(tool => {
+      const category = tool.category || 'other';
+      
+      if (!toolsByCategory[category]) {
+        toolsByCategory[category] = [];
+      }
+      
+      toolsByCategory[category].push({
+        name: tool.name,
+        description: tool.description,
+        version: tool.version || '1.0.0'
+      });
+    });
+    
+    // Format response based on requested format
+    if (format === 'html') {
+      let html = '<html><head><title>Available MCP Tools</title>';
+      html += '<style>body{font-family:sans-serif;max-width:800px;margin:0 auto;padding:20px}h1{color:#333}' +
+              'h2{color:#444;margin-top:20px}ul{margin-bottom:30px}li{margin:8px 0}' +
+              '.tool-name{font-weight:bold;color:#0066cc}.tool-description{color:#444}</style>';
+      html += '</head><body>';
+      html += '<h1>Available MCP Tools</h1>';
+      
+      Object.entries(toolsByCategory).forEach(([category, categoryTools]) => {
+        html += `<h2>${category.charAt(0).toUpperCase() + category.slice(1)} Tools</h2>`;
+        html += '<ul>';
+        
+        categoryTools.forEach(tool => {
+          html += `<li><span class="tool-name">${tool.name}</span> (v${tool.version}): ` + 
+                  `<span class="tool-description">${tool.description}</span></li>`;
+        });
+        
+        html += '</ul>';
+      });
+      
+      html += '</body></html>';
+      res.header('Content-Type', 'text/html');
+      return res.send(html);
+    } else {
+      return res.json({
+        count: allTools.length,
+        categories: Object.keys(toolsByCategory),
+        toolsByCategory
+      });
+    }
+  } catch (error) {
+    console.error('Error listing tools:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}));
 
 // Image generation tool endpoints
 app.post('/tools/image/generate', asyncHandler(async (req, res) => {
