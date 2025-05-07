@@ -11,6 +11,13 @@
     "test-mongodb": "node src/scripts/test-mongodb.js",
     "migrate-mongodb": "node src/scripts/migrate-to-mongodb.js",
     "backup-mongodb": "node src/scripts/backup-mongodb.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:start:prod": "pm2 start ecosystem.config.js --env production",
+    "pm2:stop": "pm2 stop ecosystem.config.js",
+    "pm2:restart": "pm2 restart ecosystem.config.js",
+    "pm2:delete": "pm2 delete ecosystem.config.js",
+    "pm2:logs": "pm2 logs",
+    "pm2:monit": "pm2 monit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -37,6 +44,7 @@
     "mongoose": "^8.14.1",
     "node-fetch": "^3.3.2",
     "openai": "^4.97.0",
+    "pm2": "^6.0.5",
     "sharp": "^0.34.1"
   },
   "devDependencies": {

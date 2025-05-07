@@ -118,6 +118,12 @@ npm run dev
 
 # Quick start (skips environment checks)
 npm run quick-start
+
+# Start server with PM2 process manager
+npm run pm2:start
+
+# Start server with PM2 in production mode
+npm run pm2:start:prod
 ```
 
 The server will be running at http://localhost:3000 (or the port you specified in .env).
@@ -138,6 +144,53 @@ The server will be running at http://localhost:3000 (or the port you specified i
    - Bypasses all environment checks
    - Starts the server immediately
    - Useful when you know your configuration is correct
+
+4. **PM2 Production Mode** (`npm run pm2:start:prod`):
+   - Runs the server using the PM2 process manager
+   - Automatically restarts if the server crashes
+   - Optimized for production environments
+   - Bypasses environment checks
+
+### Using PM2 Process Manager
+
+The server can be run with PM2, a production process manager for Node.js applications. PM2 provides features like:
+
+- Process management (restart on crash)
+- Log management
+- Performance monitoring
+- Load balancing (for multiple instances)
+
+#### PM2 Commands
+
+```bash
+# Start the server with PM2
+npm run pm2:start
+
+# Start in production mode
+npm run pm2:start:prod
+
+# View logs
+npm run pm2:logs
+
+# Monitor performance
+npm run pm2:monit
+
+# Restart the server
+npm run pm2:restart
+
+# Stop the server
+npm run pm2:stop
+
+# Remove the server from PM2
+npm run pm2:delete
+```
+
+The PM2 configuration is stored in `ecosystem.config.js`. You can modify this file to change:
+- Process name
+- Environment variables
+- Memory limits
+- Deployment configuration
+- Number of instances (for load balancing)
 
 ### API Endpoints
 
