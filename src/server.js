@@ -7,6 +7,9 @@ const { Anthropic } = require('@anthropic-ai/sdk');
 const { OpenAI } = require('openai');
 const tools = require('./tools');
 const databaseService = require('./services/database');
+const stateManager = require('./services/stateManager');
+const persistenceService = require('./services/persistence');
+const routes = require('./routes');
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +21,49 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  // Skip logging for static files
+  if (req.path.startsWith('/images/') || req.path.startsWith('/static/')) {
+    return next();
+  }
+  
+  const start = Date.now();
+  
+  // Log request
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  
+  // Log response time on response finish
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+    
+    // Log tool execution (for POST requests to tool endpoints)
+    if (req.method === 'POST' && req.path.startsWith('/tools/') && res.statusCode < 500) {
+      try {
+        const toolName = req.path.split('/')[2];
+        
+        stateManager.logExecution({
+          toolName,
+          provider: 'direct',
+          inputs: req.body,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        }).then(logger => {
+          logger.complete({ statusCode: res.statusCode, duration });
+        });
+      } catch (error) {
+        console.warn('Failed to log tool execution:', error.message);
+      }
+    }
+  });
+  
+  next();
+});
+
+// API routes
+app.use('/api', routes);
 
 // Initialize AI clients with optional API keys
 let anthropic = null;
@@ -48,6 +94,17 @@ app.post('/mcp/:provider', asyncHandler(async (req, res) => {
   const { provider } = req.params;
   const { prompt, messages, tools: requestTools, context, model } = req.body;
   
+  // Create execution logger
+  const executionLogger = await stateManager.logExecution({
+    toolName: 'mcp',
+    provider,
+    sessionId: req.headers['x-session-id'] || `session_${Date.now()}`,
+    inputs: { prompt, model, hasMessages: Boolean(messages), hasTools: Boolean(requestTools) },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent'),
+    modelName: model
+  });
+  
   let response;
   
   try {
@@ -68,11 +125,28 @@ app.post('/mcp/:provider', asyncHandler(async (req, res) => {
         model 
       });
     } else {
-      return res.status(400).json({ error: `Unsupported provider: ${provider}` });
+      const error = new Error(`Unsupported provider: ${provider}`);
+      await executionLogger.complete(null, error);
+      return res.status(400).json({ error: error.message });
     }
     
     // Check if tool execution is needed
     if (provider === 'anthropic' && response.type === 'tool_use') {
+      // Log the tool use
+      const toolUses = response.content.filter(item => item.type === 'tool_use');
+      for (const toolUse of toolUses) {
+        await stateManager.logExecution({
+          toolName: toolUse.name,
+          provider: 'anthropic',
+          sessionId: req.headers['x-session-id'] || `session_${Date.now()}`,
+          inputs: toolUse.input,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          modelName: model
+        });
+      }
+      
+      // Execute tools
       const toolOutputs = await executeTools(response.content);
       
       // Call the model again with tool outputs
@@ -85,8 +159,28 @@ app.post('/mcp/:provider', asyncHandler(async (req, res) => {
         model
       });
       
+      // Complete the execution log
+      await executionLogger.complete({
+        usedTools: toolUses.map(t => t.name),
+        followupResponse: true
+      });
+      
       return res.json(followupResponse);
     } else if (provider === 'openai' && response.choices[0]?.message?.tool_calls) {
+      // Log the tool calls
+      for (const toolCall of response.choices[0].message.tool_calls) {
+        await stateManager.logExecution({
+          toolName: toolCall.function.name,
+          provider: 'openai',
+          sessionId: req.headers['x-session-id'] || `session_${Date.now()}`,
+          inputs: JSON.parse(toolCall.function.arguments),
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          modelName: model
+        });
+      }
+      
+      // Execute tools
       const toolOutputs = await executeOpenAITools(response.choices[0].message.tool_calls);
       
       // Call the model again with tool outputs
@@ -99,12 +193,28 @@ app.post('/mcp/:provider', asyncHandler(async (req, res) => {
         model
       });
       
+      // Complete the execution log
+      await executionLogger.complete({
+        usedTools: response.choices[0].message.tool_calls.map(t => t.function.name),
+        followupResponse: true
+      });
+      
       return res.json(followupResponse);
     }
+    
+    // Complete the execution log for successful response without tool use
+    await executionLogger.complete({
+      usedTools: [],
+      followupResponse: false
+    });
     
     return res.json(response);
   } catch (error) {
     console.error('Error processing request:', error);
+    
+    // Complete the execution log with error
+    await executionLogger.complete(null, error);
+    
     return res.status(500).json({ error: error.message });
   }
 }));
@@ -123,11 +233,29 @@ app.post('/tools/web/search', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Query parameter is required' });
   }
   
+  // Create execution logger
+  const executionLogger = await stateManager.logExecution({
+    toolName: 'web_search',
+    provider: 'direct',
+    sessionId: req.headers['x-session-id'] || `session_${Date.now()}`,
+    inputs: { query, limit },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+  });
+  
   try {
     const results = await tools.webSearch.searchWeb(query, limit);
+    
+    // Complete the execution log
+    await executionLogger.complete(results);
+    
     return res.json(results);
   } catch (error) {
     console.error('Error using web search tool:', error);
+    
+    // Complete the execution log with error
+    await executionLogger.complete(null, error);
+    
     return res.status(500).json({ error: error.message });
   }
 }));
@@ -140,11 +268,33 @@ app.post('/tools/web/content', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'URL parameter is required' });
   }
   
+  // Create execution logger
+  const executionLogger = await stateManager.logExecution({
+    toolName: 'web_content',
+    provider: 'direct',
+    sessionId: req.headers['x-session-id'] || `session_${Date.now()}`,
+    inputs: { url, useCache },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+  });
+  
   try {
     const content = await tools.webSearch.getWebpageContent(url, useCache);
+    
+    // Complete the execution log
+    await executionLogger.complete({
+      url,
+      title: content.title,
+      contentLength: content.content?.length || 0
+    });
+    
     return res.json(content);
   } catch (error) {
     console.error('Error retrieving webpage content:', error);
+    
+    // Complete the execution log with error
+    await executionLogger.complete(null, error);
+    
     return res.status(500).json({ error: error.message });
   }
 }));
@@ -157,11 +307,32 @@ app.post('/tools/web/batch', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'URLs array parameter is required' });
   }
   
+  // Create execution logger
+  const executionLogger = await stateManager.logExecution({
+    toolName: 'web_batch',
+    provider: 'direct',
+    sessionId: req.headers['x-session-id'] || `session_${Date.now()}`,
+    inputs: { urls, useCache },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+  });
+  
   try {
     const contents = await tools.webSearch.fetchMultipleUrls(urls, useCache);
+    
+    // Complete the execution log
+    await executionLogger.complete({
+      urlCount: urls.length,
+      successCount: contents.filter(c => c.success).length
+    });
+    
     return res.json(contents);
   } catch (error) {
     console.error('Error retrieving multiple webpages:', error);
+    
+    // Complete the execution log with error
+    await executionLogger.complete(null, error);
+    
     return res.status(500).json({ error: error.message });
   }
 }));
@@ -623,6 +794,8 @@ async function executeOpenAITools(toolCalls) {
 // Function to start the server
 async function startServer() {
   try {
+    console.log('Starting MCP server...');
+    
     // Initialize database connection
     console.log('Initializing database connection...');
     
@@ -643,6 +816,29 @@ async function startServer() {
         console.log('Continuing with limited database functionality...');
       });
     
+    // Initialize state manager
+    console.log('Initializing state manager...');
+    await stateManager.initialize()
+      .then(success => {
+        if (success) {
+          console.log('✅ State manager initialized successfully');
+        } else {
+          console.warn('⚠️  State manager initialization completed with warnings');
+        }
+      })
+      .catch(err => {
+        console.error('❌ State manager initialization failed:', err);
+        console.log('Continuing with limited state management...');
+      });
+    
+    // Initialize persistence service
+    console.log('Initializing persistence service...');
+    await persistenceService.initialize()
+      .catch(err => {
+        console.error('❌ Persistence service initialization failed:', err);
+        console.log('Continuing without persistence service...');
+      });
+    
     // Start the server
     app.listen(PORT, () => {
       console.log(`MCP server running on port ${PORT}`);
@@ -657,6 +853,9 @@ async function startServer() {
       } else {
         console.log(`Database: ${databaseService.isConnected ? 'MongoDB Connected ✅' : 'Disconnected ❌'}`);
       }
+      
+      console.log(`State Management: ${stateManager.initialized ? 'Enabled ✅' : 'Disabled ❌'}`);
+      console.log(`Persistence: Enabled ✅`);
       
       if (!anthropic && !openai) {
         console.log('\n⚠️  Neither Anthropic nor OpenAI APIs are configured.');
@@ -673,54 +872,15 @@ async function startServer() {
       console.log(`You can access the web UI at: http://localhost:${PORT}`);
     });
     
-    // Setup graceful shutdown
-    setupGracefulShutdown();
+    // Log system info every 30 minutes
+    setInterval(() => {
+      const status = stateManager.getStatus();
+      const memoryMB = Math.round(status.memoryUsage.heapUsed / 1024 / 1024);
+      console.log(`[${new Date().toISOString()}] System status: ${status.toolCount} tools, ${memoryMB}MB memory used`);
+    }, 30 * 60 * 1000);
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
-  }
-}
-
-// Function to handle graceful shutdown
-function setupGracefulShutdown() {
-  // Handle SIGINT (Ctrl+C)
-  process.on('SIGINT', async () => {
-    console.log('\nReceived SIGINT signal. Shutting down gracefully...');
-    await performCleanup();
-    process.exit(0);
-  });
-  
-  // Handle SIGTERM
-  process.on('SIGTERM', async () => {
-    console.log('\nReceived SIGTERM signal. Shutting down gracefully...');
-    await performCleanup();
-    process.exit(0);
-  });
-  
-  // Handle uncaught exceptions
-  process.on('uncaughtException', async (error) => {
-    console.error('Uncaught exception:', error);
-    await performCleanup();
-    process.exit(1);
-  });
-}
-
-// Function to perform cleanup before shutdown
-async function performCleanup() {
-  console.log('Performing cleanup...');
-  
-  try {
-    // Close database connection
-    if (databaseService.isConnected) {
-      console.log('Closing database connection...');
-      await databaseService.close();
-      console.log('Database connection closed.');
-    }
-    
-    // Add any other cleanup tasks here
-    console.log('Cleanup completed.');
-  } catch (error) {
-    console.error('Error during cleanup:', error);
   }
 }
 
