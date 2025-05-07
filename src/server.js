@@ -6,6 +6,7 @@ const path = require('path');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { OpenAI } = require('openai');
 const tools = require('./tools');
+const databaseService = require('./services/database');
 
 // Load environment variables
 dotenv.config();
@@ -511,24 +512,97 @@ async function executeOpenAITools(toolCalls) {
 }
 
 // Function to start the server
-function startServer() {
-  app.listen(PORT, () => {
-    console.log(`MCP server running on port ${PORT}`);
+async function startServer() {
+  try {
+    // Initialize database connection
+    console.log('Initializing database connection...');
     
-    // Log available features
-    console.log('\n=== Available Features ===');
-    console.log(`Anthropic API (Claude): ${anthropic ? 'Enabled ✅' : 'Disabled ❌'}`);
-    console.log(`OpenAI API (GPT, DALL-E): ${openai ? 'Enabled ✅' : 'Disabled ❌'}`);
+    // Get tool definitions from the toolDefinitions module
+    const toolDefsArray = tools.getAllToolDefinitions();
     
-    if (!anthropic && !openai) {
-      console.log('\n⚠️  Neither Anthropic nor OpenAI APIs are configured.');
-      console.log('The MCP server will run with limited functionality.');
-      console.log('To enable more features, run: node src/setup.js');
+    // Initialize database with existing tool definitions
+    await databaseService.initialize({ tools: toolDefsArray })
+      .then(success => {
+        if (success) {
+          console.log('✅ Database initialized successfully');
+        } else {
+          console.warn('⚠️  Database initialization completed with warnings');
+        }
+      })
+      .catch(err => {
+        console.error('❌ Database initialization failed:', err.message);
+        console.log('Continuing with limited database functionality...');
+      });
+    
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`MCP server running on port ${PORT}`);
+      
+      // Log available features
+      console.log('\n=== Available Features ===');
+      console.log(`Anthropic API (Claude): ${anthropic ? 'Enabled ✅' : 'Disabled ❌'}`);
+      console.log(`OpenAI API (GPT, DALL-E): ${openai ? 'Enabled ✅' : 'Disabled ❌'}`);
+      console.log(`Database: ${databaseService.isConnected ? 'Connected ✅' : 'Disconnected ❌'}`);
+      
+      if (!anthropic && !openai) {
+        console.log('\n⚠️  Neither Anthropic nor OpenAI APIs are configured.');
+        console.log('The MCP server will run with limited functionality.');
+        console.log('To enable more features, run: node src/setup.js');
+      }
+      
+      console.log('\nServer is ready to accept connections!');
+      console.log(`You can access the web UI at: http://localhost:${PORT}`);
+    });
+    
+    // Setup graceful shutdown
+    setupGracefulShutdown();
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Function to handle graceful shutdown
+function setupGracefulShutdown() {
+  // Handle SIGINT (Ctrl+C)
+  process.on('SIGINT', async () => {
+    console.log('\nReceived SIGINT signal. Shutting down gracefully...');
+    await performCleanup();
+    process.exit(0);
+  });
+  
+  // Handle SIGTERM
+  process.on('SIGTERM', async () => {
+    console.log('\nReceived SIGTERM signal. Shutting down gracefully...');
+    await performCleanup();
+    process.exit(0);
+  });
+  
+  // Handle uncaught exceptions
+  process.on('uncaughtException', async (error) => {
+    console.error('Uncaught exception:', error);
+    await performCleanup();
+    process.exit(1);
+  });
+}
+
+// Function to perform cleanup before shutdown
+async function performCleanup() {
+  console.log('Performing cleanup...');
+  
+  try {
+    // Close database connection
+    if (databaseService.isConnected) {
+      console.log('Closing database connection...');
+      await databaseService.close();
+      console.log('Database connection closed.');
     }
     
-    console.log('\nServer is ready to accept connections!');
-    console.log(`You can access the web UI at: http://localhost:${PORT}`);
-  });
+    // Add any other cleanup tasks here
+    console.log('Cleanup completed.');
+  } catch (error) {
+    console.error('Error during cleanup:', error);
+  }
 }
 
 // If this file is being run directly, start the server
@@ -540,7 +614,10 @@ if (require.main === module) {
     // Check environment and start server if everything is configured
     if (process.env.SKIP_ENV_CHECK) {
       console.log('Environment check skipped via SKIP_ENV_CHECK flag.');
-      startServer();
+      startServer().catch(err => {
+        console.error('Server startup failed:', err.message);
+        process.exit(1);
+      });
     } else {
       // Perform environment check without interactive prompt
       const envStatus = {
@@ -573,20 +650,34 @@ if (require.main === module) {
                 }
               });
               require('dotenv').config();
-              startServer();
+              
+              // Start server with the new environment variables
+              startServer().catch(err => {
+                console.error('Server startup failed:', err.message);
+                process.exit(1);
+              });
             });
           } else {
             console.log('Skipping setup. Starting server with limited functionality...');
-            startServer();
+            startServer().catch(err => {
+              console.error('Server startup failed:', err.message);
+              process.exit(1);
+            });
           }
         });
       } else {
-        startServer();
+        startServer().catch(err => {
+          console.error('Server startup failed:', err.message);
+          process.exit(1);
+        });
       }
     }
   } catch (error) {
     console.warn('Setup module not found, skipping environment check.');
-    startServer();
+    startServer().catch(err => {
+      console.error('Server startup failed:', err.message);
+      process.exit(1);
+    });
   }
 }
 
