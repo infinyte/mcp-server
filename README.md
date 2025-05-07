@@ -9,6 +9,8 @@ A simple server implementation for the Model Context Protocol that provides a un
 - Tool calling support
 - Context/system message handling
 - Environment-based configuration
+- MongoDB database for persistence and state management
+- Tool execution history and analytics
 
 ## Installation
 
@@ -30,7 +32,78 @@ The setup script will guide you through configuring the necessary API keys:
 - `OPENAI_API_KEY` - For GPT models and DALL-E image generation
 - `STABILITY_API_KEY` - For Stable Diffusion image generation
 
-You can also manually edit the `.env` file if you prefer:
+You can also manually edit the `.env` file if you prefer.
+
+## MongoDB Setup
+
+The MCP server uses MongoDB for data persistence. You have several options for setting up MongoDB:
+
+### Option 1: Automated Setup (Recommended)
+
+Run the MongoDB setup script, which will guide you through the process:
+
+```bash
+# Run the MongoDB setup script
+npm run setup-mongodb
+```
+
+This script will:
+1. Check if Docker is available
+2. Start MongoDB using Docker Compose (if available)
+3. Configure the connection in your .env file
+4. Verify the MongoDB connection
+
+### Option 2: Manual Docker Setup
+
+The easiest way to get started with MongoDB is to use the included Docker Compose configuration:
+
+```bash
+# Start MongoDB and Mongo Express in Docker
+docker compose up -d
+
+# Update your .env file with the connection string
+echo "MONGODB_URI=mongodb://mcpuser:mcppassword@localhost:27017/mcp-server" >> .env
+```
+
+MongoDB will be available at `mongodb://mcpuser:mcppassword@localhost:27017/mcp-server`  
+Mongo Express (web admin) will be available at [http://localhost:8081](http://localhost:8081)
+
+### Option 3: Local MongoDB Installation
+
+If you prefer to install MongoDB locally:
+
+1. Install MongoDB from [https://www.mongodb.com/try/download/community](https://www.mongodb.com/try/download/community)
+2. Start the MongoDB service
+3. Update your `.env` file with:
+   ```
+   MONGODB_URI=mongodb://localhost:27017/mcp-server
+   ```
+
+### Option 4: MongoDB Atlas (Cloud)
+
+For production use, MongoDB Atlas is recommended:
+
+1. Create an account at [https://www.mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a new cluster
+3. Set up a database user and whitelist your IP address
+4. Get your connection string and update your `.env` file:
+   ```
+   MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/mcp-server?retryWrites=true&w=majority
+   ```
+
+## Database Migration
+
+To migrate existing data to MongoDB:
+
+```bash
+# Run the migration script
+npm run migrate-mongodb
+```
+
+This script will:
+1. Migrate tool definitions to MongoDB
+2. Migrate configurations (like API keys) to MongoDB
+3. Import any backup data if available
 
 ## Usage
 
@@ -103,6 +176,32 @@ Returns the raw response from the provider's API.
 #### `GET /health`
 
 Health check endpoint that returns status 200 if the server is running.
+
+### Data Management
+
+#### Database Backups
+
+You can create and manage database backups:
+
+```bash
+# Create a full backup
+npm run backup-mongodb
+
+# Create a backup with execution history
+npm run backup-mongodb -- --with-executions
+
+# List existing backups
+npm run backup-mongodb -- --list
+```
+
+#### Testing the Database Connection
+
+To verify your MongoDB setup:
+
+```bash
+# Run the database test script
+npm run test-mongodb
+```
 
 ### Example Clients
 

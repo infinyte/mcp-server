@@ -7,12 +7,22 @@
     "dev": "nodemon src/server.js",
     "setup": "node src/setup.js",
     "quick-start": "SKIP_ENV_CHECK=true node src/server.js",
+    "setup-mongodb": "node src/scripts/setup-mongodb.js",
+    "test-mongodb": "node src/scripts/test-mongodb.js",
+    "migrate-mongodb": "node src/scripts/migrate-to-mongodb.js",
+    "backup-mongodb": "node src/scripts/backup-mongodb.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "mcp",
+    "ai",
+    "llm",
+    "api",
+    "mongodb"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "A server implementation for the Model Context Protocol with MongoDB support",
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.12.6",
     "@anthropic-ai/sdk": "^0.40.1",
