@@ -458,4 +458,4 @@ To add new tools to the server:
 
 ## License
 
-ISC
+GNU MIT
